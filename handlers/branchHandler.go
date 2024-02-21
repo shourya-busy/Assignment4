@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"assignment4/database"
 	"assignment4/models"
 	"net/http"
 	"strconv"
@@ -16,6 +17,11 @@ func CreateBranch(context *gin.Context) {
 		return
 	}
 
+	if err := input.Validate(); err != nil {
+        context.JSON(http.StatusBadRequest, gin.H{"error" : err.Error()})
+		return
+    }
+
 	savedBranch,err := input.Save()
 
 	if err != nil {
@@ -23,7 +29,7 @@ func CreateBranch(context *gin.Context) {
 		return
 	}
 
-	context.JSON(http.StatusCreated, gin.H{"Branch":savedBranch})
+	context.JSON(http.StatusCreated, gin.H{"message" : "Branch has been created successfully","Branch ID":savedBranch.ID})
 	
 }
 
@@ -79,7 +85,7 @@ func DeleteBranchByID(context *gin.Context) {
 		return
 	}
 
-	context.JSON(http.StatusOK, gin.H{"Branches":branches})
+	context.JSON(http.StatusOK, gin.H{"message" : "Branch has been deleted successfully","Branches ID":branches.ID})
 }
 
 func UpdateBranch(context *gin.Context) {
@@ -89,14 +95,27 @@ func UpdateBranch(context *gin.Context) {
 		context.JSON(http.StatusBadRequest, gin.H{"error" : err.Error()})
 	}
 
-	updatedBranch,err := input.Update()
+	if err := input.Validate(); err != nil {
+        context.JSON(http.StatusBadRequest, gin.H{"error" : err.Error()})
+		return
+    }
+
+	tx, txErr := database.Db.Begin()
+	if txErr != nil {
+		context.JSON(http.StatusBadRequest,gin.H{"error" : txErr.Error()})
+		return
+	}
+
+	updatedBranch,err := input.Update(tx)
 
 	if err != nil {
 		context.JSON(http.StatusBadRequest,gin.H{"error":err.Error()})
 		return
 	}
 
-	context.JSON(http.StatusCreated, gin.H{"Branch":updatedBranch})
+	tx.Commit()
+
+	context.JSON(http.StatusCreated, gin.H{"message":"Branch has been updated successfully","Branch ID":updatedBranch.ID})
 	
 }
 

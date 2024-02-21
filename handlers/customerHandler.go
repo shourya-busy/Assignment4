@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"assignment4/database"
 	"assignment4/models"
 	"net/http"
 	"strconv"
@@ -9,18 +10,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type CreateCustomerRequest struct{
-	BranchID uint
-	Name string
-	PAN string
-	DOB string
-	Age uint
-	Phone uint
-	Address string
-	Balance float64
-	AccountType string
-}
-
 func CreateCustomer(context *gin.Context) {
 	var input CreateCustomerRequest
 
@@ -28,6 +17,11 @@ func CreateCustomer(context *gin.Context) {
 		context.JSON(http.StatusBadRequest, gin.H{"error" : err.Error()})
 		return
 	}
+
+	if err := input.Validate(); err != nil {
+        context.JSON(http.StatusBadRequest, gin.H{"error" : err.Error()})
+		return
+    }
 
 	customer := models.Customer{
 		BranchID: input.BranchID,
@@ -45,14 +39,20 @@ func CreateCustomer(context *gin.Context) {
 		AccountType: input.AccountType,
 	}
 
-	savedCustomer,err := customer.Save()
+	tx, txErr := database.Db.Begin()
+	if txErr != nil {
+		context.JSON(http.StatusBadRequest,gin.H{"error" : txErr.Error()})
+		return
+	}
+
+	savedCustomer,err := customer.Save(tx)
 
 	if err != nil {
 		context.JSON(http.StatusBadRequest,gin.H{"err":err.Error()})
 		return
 	}
 
-	savedAccount,err := account.Save()
+	savedAccount,err := account.Save(tx)
 
 	
 	if err != nil {
@@ -67,14 +67,16 @@ func CreateCustomer(context *gin.Context) {
 		AccountID: savedAccount.ID,
 	}
 
-	err = mapping.Save()
+	err = mapping.Save(tx)
 
 	if err != nil {
 		context.JSON(http.StatusBadRequest,gin.H{"err":err.Error()})
 		return
 	}
 
-	context.JSON(http.StatusCreated, gin.H{"Customer":savedCustomer})
+	tx.Commit()
+
+	context.JSON(http.StatusCreated, gin.H{"message" : "Customer has been created successfully","Customer ID":savedCustomer.ID})
 }
 
 func GetAllCustomersByBranchID(context *gin.Context) {
@@ -122,14 +124,22 @@ func DeleteAllCustomers(context *gin.Context) {
 func DeleteCustomerByID(context *gin.Context) {
 	id := context.Param("id")
 	ID,_ := strconv.ParseUint(id,10,0)
-	customer,err := models.DeleteCustomersByID(uint(ID))
+
+	tx, txErr := database.Db.Begin()
+	if txErr != nil {
+		context.JSON(http.StatusBadRequest,gin.H{"error" : txErr.Error()})
+		return
+	}
+	customer,err := models.DeleteCustomersByID(uint(ID),tx)
 
 	if err != nil {
 		context.JSON(http.StatusBadRequest,gin.H{"error":err.Error()})
 		return
 	}
 
-	context.JSON(http.StatusOK, gin.H{"Customer":customer})
+	tx.Commit()
+
+	context.JSON(http.StatusOK, gin.H{"message" : "Customer has been deleted successfully","Customer ID":customer.ID})
 }
 
 func UpdateCustomer(context *gin.Context) {
@@ -140,16 +150,31 @@ func UpdateCustomer(context *gin.Context) {
 		return
 	}
 
-	updatedCustomer,err := input.Update()
+	if err := input.Validate(); err != nil {
+        context.JSON(http.StatusBadRequest, gin.H{"error" : err.Error()})
+		return
+    }
+
+	tx, txErr := database.Db.Begin()
+	if txErr != nil {
+		context.JSON(http.StatusBadRequest,gin.H{"error" : txErr.Error()})
+		return
+	}
+
+	updatedCustomer,err := input.Update(tx)
 
 	if err != nil {
 		context.JSON(http.StatusBadRequest,gin.H{"error":err.Error()})
 		return
 	}
 
-	context.JSON(http.StatusCreated, gin.H{"Customer":updatedCustomer})
+	tx.Commit()
+
+	context.JSON(http.StatusCreated, gin.H{"message" : "Customer has been updated succesfully","Customer ID":updatedCustomer.ID})
 	
 }
+
+
 func GetAllNomineesByAccountNumber(context *gin.Context) {
 	number := uuid.MustParse(context.Param("number"))
 

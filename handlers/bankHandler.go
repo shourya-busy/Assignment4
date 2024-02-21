@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"assignment4/database"
 	"assignment4/models"
 	"net/http"
 	"strconv"
@@ -13,20 +14,22 @@ func CreateBank(context *gin.Context) {
 
 	if err := context.ShouldBind(&input); err != nil {
 		context.JSON(http.StatusBadRequest, gin.H{"error" : err.Error()})
+		return
 	}
 
-	bank := models.Bank{
-		Name: input.Name,
-	}
+	if err := input.Validate(); err != nil {
+        context.JSON(http.StatusBadRequest, gin.H{"error" : err.Error()})
+		return
+    }
 
-	savedBank,err := bank.Save()
+	savedBank,err := input.Save()
 
 	if err != nil {
 		context.JSON(http.StatusBadRequest,gin.H{"error":err.Error()})
 		return
 	}
 
-	context.JSON(http.StatusCreated, gin.H{"Bank":savedBank})
+	context.JSON(http.StatusCreated, gin.H{"message" : "Bank has been created successfully","Bank ID":savedBank.ID})
 	
 }
 
@@ -78,7 +81,7 @@ func DeleteBankByID(context *gin.Context) {
 		return
 	}
 
-	context.JSON(http.StatusOK, gin.H{"Bank":bank})
+	context.JSON(http.StatusOK, gin.H{"message" : "Bank has been deleted successfully","Bank ID":bank.ID})
 }
 
 func UpdateBank(context *gin.Context) {
@@ -88,14 +91,28 @@ func UpdateBank(context *gin.Context) {
 		context.JSON(http.StatusBadRequest, gin.H{"error" : err.Error()})
 	}
 
-	updatedBank,err := input.Update()
+	if err := input.Validate(); err != nil {
+        context.JSON(http.StatusBadRequest, gin.H{"error" : err.Error()})
+		return
+    }
+
+
+	tx, txErr := database.Db.Begin()
+	if txErr != nil {
+		context.JSON(http.StatusBadRequest,gin.H{"error" : txErr.Error()})
+		return
+	}
+
+	updatedBank,err := input.Update(tx)
 
 	if err != nil {
 		context.JSON(http.StatusBadRequest,gin.H{"error":err.Error()})
 		return
 	}
 
-	context.JSON(http.StatusCreated, gin.H{"Bank":updatedBank})
+	tx.Commit()
+
+	context.JSON(http.StatusCreated, gin.H{"message" : "Bank has been updated successfully","Bank ID":updatedBank.ID})
 	
 }
 

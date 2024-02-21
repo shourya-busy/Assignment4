@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"assignment4/database"
 	"assignment4/models"
 	"net/http"
 	"strconv"
@@ -17,6 +18,11 @@ func Deposit(context *gin.Context) {
 		return
 	}
 
+	if err := input.Validate(); err != nil {
+        context.JSON(http.StatusBadRequest, gin.H{"error" : err.Error()})
+		return
+    }
+
 	transaction := models.Transaction{
 		AccountID: input.AccountID,
 		Amount: input.Amount,
@@ -25,21 +31,29 @@ func Deposit(context *gin.Context) {
 		Time: time.Now(),
 	}
 
-	err := models.AccountDeposit(transaction.AccountID,transaction.Amount)
+	tx, txErr := database.Db.Begin()
+	if txErr != nil {
+		context.JSON(http.StatusBadRequest,gin.H{"error" : txErr.Error()})
+		return
+	}
+
+	err := models.AccountDeposit(transaction.AccountID,transaction.Amount,tx)
 
 	if err != nil {
 		context.JSON(http.StatusNotModified,gin.H{"error" : err.Error()})
 		return
 	}
 
-	savedTransaction,err := transaction.Save()
+	savedTransaction,err := transaction.Save(tx)
 
 	if err != nil {
 		context.JSON(http.StatusResetContent,gin.H{"error" : err.Error()})
 		return 
 	}
 
-	context.JSON(http.StatusAccepted,gin.H{"message":"Your Transaction has been completed suxccessfully","data":savedTransaction})
+	tx.Commit()
+
+	context.JSON(http.StatusAccepted,gin.H{"message":"Your Transaction has been completed suxccessfully","data":savedTransaction.ID})
 
 }
 
@@ -50,6 +64,11 @@ func Withdraw(context *gin.Context) {
 		return
 	}
 
+	if err := input.Validate(); err != nil {
+        context.JSON(http.StatusBadRequest, gin.H{"error" : err.Error()})
+		return
+    }
+
 	transaction := models.Transaction{
 		AccountID: input.AccountID,
 		Amount: input.Amount,
@@ -58,21 +77,29 @@ func Withdraw(context *gin.Context) {
 		Time: time.Now(),
 	}
 
-	err := models.AccountWithdrawal(transaction.AccountID,transaction.Amount)
+	tx, txErr := database.Db.Begin()
+	if txErr != nil {
+		context.JSON(http.StatusBadRequest,gin.H{"error" : txErr.Error()})
+		return
+	}
+
+	err := models.AccountWithdrawal(transaction.AccountID,transaction.Amount,tx)
 
 	if err != nil {
 		context.JSON(http.StatusBadGateway,gin.H{"error" : err.Error()})
 		return
 	}
 
-	savedTransaction,err := transaction.Save()
+	savedTransaction,err := transaction.Save(tx)
 
 	if err != nil {
 		context.JSON(http.StatusResetContent,gin.H{"error" : err.Error()})
 		return
 	}
 
-	context.JSON(http.StatusAccepted,gin.H{"message":"Your Transaction has been completed suxccessfully","data":savedTransaction})
+	tx.Commit()
+
+	context.JSON(http.StatusAccepted,gin.H{"message":"Your Transaction has been completed suxccessfully","data":savedTransaction.ID})
 
 }
 
@@ -83,6 +110,12 @@ func Transfer(context *gin.Context) {
 		return
 	}
 
+	if err := input.Validate(); err != nil {
+        context.JSON(http.StatusBadRequest, gin.H{"error" : err.Error()})
+		return
+    }
+
+
 	transaction := models.Transaction{
 		AccountID: input.AccountID,
 		Amount: input.Amount,
@@ -92,21 +125,29 @@ func Transfer(context *gin.Context) {
 		Time: time.Now(),
 	}
 
-	err := models.AccountTransfer(transaction.AccountID,transaction.ReceiverAccountNumber,transaction.Amount)
+	tx, txErr := database.Db.Begin()
+	if txErr != nil {
+		context.JSON(http.StatusBadRequest,gin.H{"error" : txErr.Error()})
+		return
+	}
+
+	err := models.AccountTransfer(transaction.AccountID,transaction.ReceiverAccountNumber,transaction.Amount,tx)
 
 	if err != nil {
 		context.JSON(http.StatusBadRequest,gin.H{"error" : err.Error()})
 		return
 	}
 
-	savedTransaction,err := transaction.Save()
+	savedTransaction,err := transaction.Save(tx)
 
 	if err != nil {
 		context.JSON(http.StatusResetContent,gin.H{"error" : err.Error()})
 		return
 	}
 
-	context.JSON(http.StatusAccepted,gin.H{"message":"Your Transaction has been completed suxccessfully","data":savedTransaction})
+	tx.Commit()
+
+	context.JSON(http.StatusAccepted,gin.H{"message":"Your Transaction has been completed suxccessfully","data":savedTransaction.ID})
 
 }
 

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"assignment4/database"
 	"assignment4/models"
 	"net/http"
 	"strconv"
@@ -9,10 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type AddNomineeRequest struct{
-	NomineeID uint
-	AccountNumber uuid.UUID
-}
+
 
 func AddNominee(context *gin.Context){
 	var input AddNomineeRequest
@@ -21,6 +19,11 @@ func AddNominee(context *gin.Context){
 		context.JSON(http.StatusBadRequest, gin.H{"error" : err.Error()})
 		return
 	}
+
+	if err := input.Validate(); err != nil {
+        context.JSON(http.StatusBadRequest, gin.H{"error" : err.Error()})
+		return
+    }
 
 	account,err := models.FindAccountByAccountNumber(input.AccountNumber)
 
@@ -34,12 +37,20 @@ func AddNominee(context *gin.Context){
 		AccountID: account.ID,
 	}
 
-	err = mapping.Save()
+	tx, txErr := database.Db.Begin()
+	if txErr != nil {
+		context.JSON(http.StatusBadRequest,gin.H{"error" : txErr.Error()})
+		return
+	}
+
+	err = mapping.Save(tx)
 
 	if err != nil {
 		context.JSON(http.StatusBadRequest,gin.H{"err":err.Error()})
 		return
 	}
+
+	tx.Commit()
 
 	context.JSON(http.StatusOK, gin.H{"Message":"Nominee added"})
 
